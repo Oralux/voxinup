@@ -15,9 +15,14 @@ enum {
 	state_idle
 };
 
+typedef enum {
+  SPEAKUP_MODE=0,
+  JUPITER_ESPEAKUP_MODE
+} ttsynth_mode_t;
 
 typedef struct {
 	int fd;
+	ttsynth_mode_t mode;
 	snd_pcm_t *device;
 	ECIHand handle;
 	int state;
@@ -26,9 +31,20 @@ typedef struct {
 	int rate;
 } synth;
 
+static void speakup_add_text (synth *s, const char *text);
+static void jupiter_add_text (synth *s, const char *text);
+
+typedef void (add_text_func_t) (synth *s, const char *text);
+
+add_text_func_t *add_text[2] = {speakup_add_text, jupiter_add_text};
 
 #define MAX_AUDIO_BUFFER_SIZE 8192
 static short audio_buffer[MAX_AUDIO_BUFFER_SIZE];
+
+#define JUPITER_ESPEAKUP_MARK_FORMAT "<mark name=\"%d\"/>"
+#define JUPITER_ESPEAKUP_MARK_MIN_LENGTH 16 // e.g. length of '<mark name="1"/>'
+#define JUPITER_ESPEAKUP_MARK_MIN_VALUE 1 
+#define JUPITER_ESPEAKUP_MARK_MAX_VALUE 99
 
 
 enum ECICallbackReturn
@@ -46,6 +62,11 @@ ttsynth_callback (ECIHand hEngine,
 
 	switch (Msg) {
 	case eciIndexReply:
+		if ((s->mode == JUPITER_ESPEAKUP_MODE)
+		    && (lParam >= JUPITER_ESPEAKUP_MARK_MIN_VALUE) 
+		    && (lParam <= JUPITER_ESPEAKUP_MARK_MAX_VALUE))
+			write(STDOUT_FILENO, (char*)&lParam, 1);
+		
 		rv = eciDataProcessed;
 		break;
 	case eciWaveformBuffer:
@@ -59,6 +80,52 @@ ttsynth_callback (ECIHand hEngine,
 		break;
 	}
 	return rv;
+}
+
+
+/* jupiter_add_text parses the input buffer according to the Jupiter / espeakup format, 
+   and supplies texts and indexes to the ECI Engine.   
+ */
+static void 
+jupiter_add_text (synth *s, 
+		 const char *text)
+{
+	char* textMax;
+	char* buf;
+  
+	if (!s || !text|| !*text)
+		return;
+
+	textMax = (char *)text + strlen(text) - 1;
+    
+	for (buf = (char *)text; buf < textMax; buf++) {
+		int i = 0;
+		if ((*buf == '<') 
+		    && (sscanf(buf, JUPITER_ESPEAKUP_MARK_FORMAT, &i) == 1)
+		    && (i >= JUPITER_ESPEAKUP_MARK_MIN_VALUE)
+		    && (i <= JUPITER_ESPEAKUP_MARK_MAX_VALUE)) {
+			if (buf > text) {
+				s->text_pending = 1;
+				*buf = 0;
+				eciAddText(s->handle, text);
+				*buf = '<';
+			}
+			s->text_pending = 1;
+			eciInsertIndex(s->handle, i);
+			
+			for (buf += JUPITER_ESPEAKUP_MARK_MIN_LENGTH - 1; buf <= textMax; buf++) {
+				if (*buf == '>') {
+					buf++;
+					text = buf;
+					break;
+				}  
+			}
+		}
+	}
+	if (text < textMax) {
+		s->text_pending = 1;
+		eciAddText(s->handle, text);
+	}
 }
 
 
@@ -107,14 +174,6 @@ synth_new ()
 	if (tmp > MAX_AUDIO_BUFFER_SIZE)
 		tmp = MAX_AUDIO_BUFFER_SIZE;
 
-	// Open the soft synth handle
-
-	s->fd = open ("/dev/softsynth", O_RDONLY);
-	if (s->fd < 0)
-		goto bail;
-	fcntl (s->fd, F_SETFL, 
-	       fcntl (s->fd, F_GETFL) | O_NONBLOCK);
-	
 	/* Create the ECI handle */
 
 	s->handle = eciNew ();
@@ -156,7 +215,7 @@ synth_close (synth *s)
 
 
 static void
-synth_add_text (synth *s,
+speakup_add_text (synth *s,
 		const char *text)
 {
 	assert (s);
@@ -278,13 +337,16 @@ synth_process_data (synth *s)
 
 	l = read (s->fd, buf, 1024);
 	start = end = 0;
+	if ((l==0) && (s->mode == JUPITER_ESPEAKUP_MODE) && (getppid() == 1)) {
+		exit(0);
+	}
 	while (start < l) {
 		while (buf[end] >= 32 && end < l)
 			end++;
 		if (end != start) {
 			strncpy (tmp_buf, &buf[start], end-start);
 			tmp_buf[end-start] = 0;
-			synth_add_text (s, tmp_buf);
+			add_text[s->mode] (s, tmp_buf);
 		}
 		if (end < l)
 			start = end = end+synth_process_command (s, buf, end, l);
@@ -320,16 +382,48 @@ synth_main_loop (synth *s)
 }
 
 
+static void 
+usage()
+{
+	printf("Usage: spk-connect-ttsynth [-j]\n"
+	       "-j: jupiter/espeakup mode\n");
+}
+
+
 int
-main ()
+main (int argc, char** argv)
 {
 	synth *s;
+	int fd = -1;
+	ttsynth_mode_t mode = SPEAKUP_MODE;
 
-	daemon (0, 1);
+	if (argc == 2) {
+	  if (strcmp("-j", argv[1]) != 0) {
+	    usage();
+	    return -1;
+	  } 
+	  mode = JUPITER_ESPEAKUP_MODE;
+	  fd = STDIN_FILENO;
+	} else {
+	  mode = SPEAKUP_MODE;
+	  fd = open ("/dev/softsynth", O_RDONLY);
+	  if (fd < 0) {
+	    return -1;
+	  }
+	  fcntl (fd, F_SETFL, 
+		 fcntl (fd, F_GETFL) | O_NONBLOCK);
+	}
+
+	if (mode == SPEAKUP_MODE)
+		daemon (0, 1);
+
 	s = synth_new ();
 	if (!s) {
 		return -1;
 	}
+
+	s->fd = fd;	
+	s->mode = mode;
 
 	/* Setup initial voice parameters */
 
