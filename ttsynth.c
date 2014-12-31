@@ -270,9 +270,9 @@ synth_process_command (synth *s,
 static void
 synth_process_data (synth *s)
 {
-	char buf[1025];
+	unsigned char buf[1025];
 	int l;
-	char tmp_buf[1025];
+	unsigned char tmp_buf[1025];
 	int start, end;
 	int text_pending = 0;
 
