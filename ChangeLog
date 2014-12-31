@@ -1,0 +1,14 @@
+2014-12-31 Gilles Casse,  gcasse at oralux.org
+	Release 2.0:
+
+	* Fork from http://www.speakupmodified.org/ttsynth/spk-connect-ttsynth-1.1.tar.gz
+
+	* Compatibility Jupiter (espeakup mode).
+	spk-connector-ttsynth is now compatible with Jupiter [1].
+	The command line:
+	jupiter -d esp "|exec spk-connect-ttsynth -j"
+
+	[1] Jupiter:
+	https://github.com/eklhad/acsint/tree/master/jupiter
+
+	* Compatibility iso8859-1

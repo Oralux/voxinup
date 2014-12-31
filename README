@@ -1,7 +1,13 @@
-This software is a fork of spk-connect-ttsynth downloaded from www.speakupmodified.org [1].
+This software is a fork [1] of spk-connect-ttsynth downloaded from www.speakupmodified.org [2].
 It attempts to answer recent demands at Oralux.org.
+Read please the ChangeLog for more details.
 
-[1] Original sources:
+Gilles Casse, 2014, gcasse at oralux.org
+
+[1] Fork at github
+https://github.com/Oralux/spk-connect-ttsynth
+
+[2] Original sources:
 http://www.speakupmodified.org/ttsynth/spk-connect-ttsynth-1.1.tar.gz
 
 Copyright (C) 2005, 2006, 2007
