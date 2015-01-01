@@ -1,15 +1,25 @@
-ttsynth_CFLAGS = \
-	-ggdb \
-	-I/opt/IBM/ibmtts/inc
+PREFIX = /usr
+BINDIR = ${PREFIX}/bin
 
-ttsynth_LIBS = \
-	-lasound \
-	-libmeci
+SRCS = ttsynth.c
+OBJS = $(SRCS:.c=.o)
+LDLIBS = -lasound -libmeci
+CFLAGS = -m32 -I/opt/IBM/ibmtts/inc -Wall 
+#CFLAGS += -ggdb
+LDFLAGS = -m32
+
+INSTALL=install
 
 all: spk-connect-ttsynth
 
-spk-connect-ttsynth: ttsynth.c
-	gcc $(ttsynth_CFLAGS) $(ttsynth_LIBS) ttsynth.c -o spk-connect-ttsynth
+install: spk-connect-ttsynth
+	$(INSTALL) -d $(DESTDIR)/$(BINDIR)
+	$(INSTALL) -m 0755 $< $(DESTDIR)/$(BINDIR)
+
+spk-connect-ttsynth: ${OBJS}
+	${CC} ${LDFLAGS} -o $@ $^ $(LDLIBS)
 
 clean:
-	rm spk-connect-ttsynth
+	${RM} ${OBJS} spk-connect-ttsynth
+
+#${SRCS:.c=.o}:	${SRCS}

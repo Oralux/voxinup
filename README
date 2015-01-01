@@ -1,8 +1,18 @@
 This software is a fork [1] of spk-connect-ttsynth downloaded from www.speakupmodified.org [2].
 It attempts to answer recent demands at Oralux.org.
-Read please the ChangeLog for more details.
 
-Gilles Casse, 2014, gcasse at oralux.org
+* install
+make install
+
+* test jupiter and spk-connect-ttsynth
+./run-jupiter.sh
+
+* stop jupiter and spk-connect-ttsynth
+./stop-jupiter.sh
+
+* feedback
+contact at oralux.org
+
 
 [1] Fork at github
 https://github.com/Oralux/spk-connect-ttsynth

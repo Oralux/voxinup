@@ -8,9 +8,8 @@
 #include <alsa/asoundlib.h>
 #include <eci.h>
 
-
 enum {
-	state_stoped,
+	state_stopped,
 	state_speaking,
 	state_idle
 };
@@ -31,10 +30,10 @@ typedef struct {
 	int rate;
 } synth;
 
-static void speakup_add_text (synth *s, const char *text);
-static void jupiter_add_text (synth *s, const char *text);
+static void speakup_add_text (synth *s, unsigned char *text);
+static void jupiter_add_text (synth *s, unsigned char *text);
 
-typedef void (add_text_func_t) (synth *s, const char *text);
+typedef void (add_text_func_t) (synth *s, unsigned char *text);
 
 add_text_func_t *add_text[2] = {speakup_add_text, jupiter_add_text};
 
@@ -78,6 +77,8 @@ ttsynth_callback (ECIHand hEngine,
 			rv = eciDataProcessed;
 		}
 		break;
+	default:
+	  break;
 	}
 	return rv;
 }
@@ -88,20 +89,20 @@ ttsynth_callback (ECIHand hEngine,
  */
 static void 
 jupiter_add_text (synth *s, 
-		 const char *text)
+		 unsigned char *text)
 {
-	char* textMax;
-	char* buf;
+	unsigned char* textMax;
+	unsigned char* buf;
   
 	if (!s || !text|| !*text)
 		return;
 
-	textMax = (char *)text + strlen(text) - 1;
+	textMax = text + strlen((char*)text) - 1;
     
-	for (buf = (char *)text; buf < textMax; buf++) {
+	for (buf = text; buf < textMax; buf++) {
 		int i = 0;
 		if ((*buf == '<') 
-		    && (sscanf(buf, JUPITER_ESPEAKUP_MARK_FORMAT, &i) == 1)
+		    && (sscanf((char*)buf, JUPITER_ESPEAKUP_MARK_FORMAT, &i) == 1)
 		    && (i >= JUPITER_ESPEAKUP_MARK_MIN_VALUE)
 		    && (i <= JUPITER_ESPEAKUP_MARK_MAX_VALUE)) {
 			if (buf > text) {
@@ -135,35 +136,34 @@ synth_new ()
 	synth *s;
 	snd_pcm_hw_params_t *hw_params = 0;
 	unsigned int tmp;
-	int dir;
 	int err;
 	
 	s = (synth *) malloc (sizeof(synth));
 	if (!s)
 		return NULL;
 
-	if (err = snd_pcm_open (&s->device, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0)
+	if ((err = snd_pcm_open (&s->device, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0)
 		goto bail;
 
-	if (err = snd_pcm_hw_params_malloc (&hw_params) < 0)
+	if ((err = snd_pcm_hw_params_malloc (&hw_params)) < 0)
 		goto bail;
 	
-	if (err = snd_pcm_hw_params_any (s->device, hw_params) < 0)
+	if ((err = snd_pcm_hw_params_any (s->device, hw_params)) < 0)
 		goto bail;
 
-	if (err = snd_pcm_hw_params_set_access (s->device, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED) < 0)
+	if ((err = snd_pcm_hw_params_set_access (s->device, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0)
 		goto bail;
 
-	if (err = snd_pcm_hw_params_set_format (s->device, hw_params, SND_PCM_FORMAT_S16_LE) < 0)
+	if ((err = snd_pcm_hw_params_set_format (s->device, hw_params, SND_PCM_FORMAT_S16_LE)) < 0)
 		goto bail;
 
-	if (err = snd_pcm_hw_params_set_rate (s->device, hw_params, 22050, 0) < 0)
+	if ((err = snd_pcm_hw_params_set_rate (s->device, hw_params, 22050, 0)) < 0)
 		goto bail;
 
-	if (err = snd_pcm_hw_params_set_channels (s->device, hw_params, 1) < 0)
+	if ((err = snd_pcm_hw_params_set_channels (s->device, hw_params, 1)) < 0)
 		goto bail;
 
-	if (err = snd_pcm_hw_params (s->device, hw_params) < 0)
+	if ((err = snd_pcm_hw_params (s->device, hw_params)) < 0)
 		goto bail;
 
 	snd_pcm_hw_params_free (hw_params);
@@ -216,7 +216,7 @@ synth_close (synth *s)
 
 static void
 speakup_add_text (synth *s,
-		const char *text)
+		unsigned char *text)
 {
 	assert (s);
 
@@ -277,12 +277,12 @@ synth_update_rate (synth *s)
 
 static int
 synth_process_command (synth *s,
-		       char *buf,
+		       unsigned char *buf,
 		       int start,
 		       int l)
 {
-	char param;
-	char value;
+	unsigned char param;
+	unsigned char value;
 	
 	switch (buf[start]) {
 	case 1:
@@ -333,7 +333,6 @@ synth_process_data (synth *s)
 	int l;
 	unsigned char tmp_buf[1025];
 	int start, end;
-	int text_pending = 0;
 
 	l = read (s->fd, buf, 1024);
 	start = end = 0;
@@ -344,7 +343,7 @@ synth_process_data (synth *s)
 		while (buf[end] >= 32 && end < l)
 			end++;
 		if (end != start) {
-			strncpy (tmp_buf, &buf[start], end-start);
+		  strncpy ((char*)tmp_buf, (char*)&buf[start], end-start);
 			tmp_buf[end-start] = 0;
 			add_text[s->mode] (s, tmp_buf);
 		}
