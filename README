@@ -4,11 +4,11 @@ It attempts to answer recent demands at Oralux.org.
 * install
 make install
 
-* test jupiter and spk-connect-ttsynth
-./run-jupiter.sh
+* test jupiter [3] and spk-connect-ttsynth
+jupiter-spk-run.sh
 
 * stop jupiter and spk-connect-ttsynth
-./stop-jupiter.sh
+jupiter-spk-stop.sh
 
 * feedback
 contact at oralux.org
@@ -29,3 +29,6 @@ http://TTSynth.Com
 Capital Accessibility, LLC
 P.O. Box 250802
 New York, NY 10025-9964 USA
+
+[3] Jupiter
+https://github.com/eklhad/acsint/tree/master/jupiter
