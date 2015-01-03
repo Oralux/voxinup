@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <alsa/asoundlib.h>
 #include <eci.h>
+#include <iconv.h>
 
 enum {
 	state_stopped,
@@ -19,8 +20,13 @@ typedef enum {
   JUPITER_ESPEAKUP_MODE
 } ttsynth_mode_t;
 
+#define MAX_INPUT 1024
+#define MAX_OUTPUT (4*MAX_INPUT)
+
 typedef struct {
 	int fd;
+	iconv_t ld;
+	unsigned char outbuf[MAX_OUTPUT + 1];
 	ttsynth_mode_t mode;
 	snd_pcm_t *device;
 	ECIHand handle;
@@ -44,7 +50,6 @@ static short audio_buffer[MAX_AUDIO_BUFFER_SIZE];
 #define JUPITER_ESPEAKUP_MARK_MIN_LENGTH 16 // e.g. length of '<mark name="1"/>'
 #define JUPITER_ESPEAKUP_MARK_MIN_VALUE 1 
 #define JUPITER_ESPEAKUP_MARK_MAX_VALUE 99
-
 
 enum ECICallbackReturn
 ttsynth_callback (ECIHand hEngine,
@@ -84,6 +89,25 @@ ttsynth_callback (ECIHand hEngine,
 }
 
 
+static void add_utf8_text(synth *s, unsigned char *utf8_text)
+{
+	char *inbuf;
+	char *outbuf;
+	size_t inbytesleft;
+	size_t outbytesleft = MAX_OUTPUT;
+	if (!s || !utf8_text)
+		return;
+	inbuf = (char*)utf8_text;
+	inbytesleft = strlen(inbuf);
+	outbuf = (char*)s->outbuf;
+	if (-1 != iconv(s->ld, &inbuf, &inbytesleft, &outbuf, &outbytesleft))
+	{
+		s->outbuf[MAX_OUTPUT - outbytesleft] = 0;
+		eciAddText(s->handle, s->outbuf);
+	}
+	
+}
+
 /* jupiter_add_text parses the input buffer according to the Jupiter / espeakup format, 
    and supplies texts and indexes to the ECI Engine.   
  */
@@ -108,7 +132,7 @@ jupiter_add_text (synth *s,
 			if (buf > text) {
 				s->text_pending = 1;
 				*buf = 0;
-				eciAddText(s->handle, text);
+				add_utf8_text(s, text);
 				*buf = '<';
 			}
 			s->text_pending = 1;
@@ -125,7 +149,7 @@ jupiter_add_text (synth *s,
 	}
 	if (text < textMax) {
 		s->text_pending = 1;
-		eciAddText(s->handle, text);
+		add_utf8_text(s, text);
 	}
 }
 
@@ -329,12 +353,12 @@ synth_process_command (synth *s,
 static void
 synth_process_data (synth *s)
 {
-	unsigned char buf[1025];
+	unsigned char buf[MAX_INPUT+1];
 	int l;
-	unsigned char tmp_buf[1025];
+	unsigned char tmp_buf[MAX_INPUT+1];
 	int start, end;
 
-	l = read (s->fd, buf, 1024);
+	l = read (s->fd, buf, MAX_INPUT);
 	start = end = 0;
 	if ((l==0) && (s->mode == JUPITER_ESPEAKUP_MODE) && (getppid() == 1)) {
 		exit(0);
@@ -394,6 +418,7 @@ main (int argc, char** argv)
 {
 	synth *s;
 	int fd = -1;
+	iconv_t ld = (iconv_t)-1;
 	ttsynth_mode_t mode = SPEAKUP_MODE;
 
 	if (argc == 2) {
@@ -403,6 +428,11 @@ main (int argc, char** argv)
 	  } 
 	  mode = JUPITER_ESPEAKUP_MODE;
 	  fd = STDIN_FILENO;
+	  /* only iso-8859-1 languages are currently supported */
+	  ld = iconv_open("ISO-8859-1//TRANSLIT", "UTF-8");
+	  if (ld == (iconv_t)-1) {
+		  return -1;
+	  }
 	} else {
 	  mode = SPEAKUP_MODE;
 	  fd = open ("/dev/softsynth", O_RDONLY);
@@ -422,6 +452,7 @@ main (int argc, char** argv)
 	}
 
 	s->fd = fd;	
+	s->ld = ld;
 	s->mode = mode;
 
 	/* Setup initial voice parameters */
