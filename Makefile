@@ -5,9 +5,9 @@ SRCS = ttsynth.c
 SCRIPTS = jupiter-spk-run.sh  jupiter-spk-stop.sh
 OBJS = ${SRCS:.c=.o}
 LDLIBS = -lasound -libmeci
-CFLAGS = -m32 -I/opt/IBM/ibmtts/inc -Wall 
+CFLAGS = -I/opt/IBM/ibmtts/inc -Wall 
 #CFLAGS += -ggdb
-LDFLAGS = -m32
+LDFLAGS = 
 
 INSTALL=install
 

@@ -1,10 +1,9 @@
 This software is a fork [1] of spk-connect-ttsynth downloaded from www.speakupmodified.org [2].
 It attempts to answer recent demands at Oralux.org.
 
+Compatible with Voxin 1.x.
+
 * install
-# Available on x86_32 or x86_64 arch.
-# The 32 bits gcc compiler is required.
-# 
 make install
 
 * test jupiter [3] and spk-connect-ttsynth
