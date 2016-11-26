@@ -408,7 +408,7 @@ synth_main_loop (synth *s)
 static void 
 usage()
 {
-	printf("Usage: spk-connect-ttsynth [-j]\n"
+	printf("Usage: voxinup [-j]\n"
 	       "-j: jupiter/espeakup mode\n");
 }
 

@@ -1,8 +1,10 @@
-2016-09-14 Gilles Casse,  gcasse at oralux.org
-	Release 2.1: compatibility voxin 1.x
+2016-11-26 Release 2.2
+	Change the original name from spk-connect-ttsynth to voxinup to ease at least the typing
 
-2014-12-31 Gilles Casse,  gcasse at oralux.org
-	Release 2.0:
+2016-09-14 Release 2.1
+	Compatibility voxin 1.x
+
+2014-12-31 Release 2.0
 
 	* Fork from http://www.speakupmodified.org/ttsynth/spk-connect-ttsynth-1.1.tar.gz
 

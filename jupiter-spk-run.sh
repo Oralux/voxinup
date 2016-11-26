@@ -1,9 +1,9 @@
 #!/bin/sh
 
-# Helper script to test jupiter and spk-connect-ttsynth
+# Helper script to test jupiter and voxinup
 #
 # If this test is ok, jupiter should be configured to select 
-# spk-connect-ttsynth at init time according to the 
+# voxinup at init time according to the 
 # system rules (systemd, sysv,...).
 #
 bye() {
@@ -14,9 +14,9 @@ bye() {
 
 [ "$(id -u)" = "0" ] || bye "Please run this installer as root"
 (which jupiter >/dev/null) || bye "jupiter not found"
-(which spk-connect-ttsynth >/dev/null) || bye "spk-connect-ttsynth not found"
+(which voxinup >/dev/null) || bye "voxinup not found"
 [ -e /var/opt/IBM/ibmtts/cfg/eci.ini ] || bye "Install please voxin before"
 $(lsmod | grep -q acsint) || modprobe acsint 2>/dev/null || bye "acsint module not found"
 
 # run jupiter
-jupiter -d esp "|exec spk-connect-ttsynth -j"
+jupiter -d esp "|exec voxinup -j"

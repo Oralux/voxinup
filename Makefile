@@ -11,14 +11,14 @@ LDFLAGS =
 
 INSTALL=install
 
-all: spk-connect-ttsynth
+all: voxinup
 
-install: spk-connect-ttsynth
+install: voxinup
 	${INSTALL} -d ${DESTDIR}/${BINDIR}
 	${INSTALL} -m 0755 $< ${SCRIPTS} ${DESTDIR}/${BINDIR}
 
-spk-connect-ttsynth: ${OBJS}
+voxinup: ${OBJS}
 	${CC} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
 clean:
-	${RM} ${OBJS} spk-connect-ttsynth
+	${RM} ${OBJS} voxinup

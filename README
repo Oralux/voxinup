@@ -6,10 +6,10 @@ Compatible with Voxin 1.x.
 * install
 make install
 
-* test jupiter [3] and spk-connect-ttsynth
+* test jupiter [3] and voxinup
 jupiter-spk-run.sh
 
-* stop jupiter and spk-connect-ttsynth
+* stop jupiter and voxinup
 jupiter-spk-stop.sh
 
 * feedback
@@ -17,7 +17,7 @@ contact at oralux.org
 
 
 [1] Fork at github
-https://github.com/Oralux/spk-connect-ttsynth
+https://github.com/Oralux/voxinup
 
 [2] Original sources:
 http://www.speakupmodified.org/ttsynth/spk-connect-ttsynth-1.1.tar.gz
