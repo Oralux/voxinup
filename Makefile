@@ -1,12 +1,12 @@
 PREFIX = /usr
 BINDIR = ${PREFIX}/bin
 
-SRCS = ttsynth.c
+SRCS = ttsynth.c player.c
 SCRIPTS = jupiter-spk-run.sh  jupiter-spk-stop.sh
 OBJS = ${SRCS:.c=.o}
 LDLIBS = -lasound -libmeci
 CFLAGS = -I/opt/IBM/ibmtts/inc -Wall 
-#CFLAGS += -ggdb
+CFLAGS += -ggdb
 LDFLAGS = 
 
 INSTALL=install

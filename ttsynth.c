@@ -5,9 +5,10 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <alsa/asoundlib.h>
 #include <eci.h>
 #include <iconv.h>
+#include <string.h>
+#include "player.h"
 
 enum {
   state_stopped,
@@ -28,12 +29,12 @@ typedef struct {
   iconv_t ld;
   unsigned char outbuf[MAX_OUTPUT + 1];
   ttsynth_mode_t mode;
-  snd_pcm_t *device;
-  ECIHand handle;
+  ECIHand eci;
   int state;
   int text_pending;
   int pitch;
   int rate;
+  player_handle player; 
 } synth;
 
 static void speakup_add_text (synth *s, unsigned char *text);
@@ -43,8 +44,7 @@ typedef void (add_text_func_t) (synth *s, unsigned char *text);
 
 add_text_func_t *add_text[2] = {speakup_add_text, jupiter_add_text};
 
-#define MAX_AUDIO_BUFFER_SIZE 8192
-static short audio_buffer[MAX_AUDIO_BUFFER_SIZE];
+static uint8_t *audio_buffer = NULL;
 
 #define JUPITER_ESPEAKUP_MARK_FORMAT "<mark name=\"%d\"/>"
 #define JUPITER_ESPEAKUP_MARK_MIN_LENGTH 16 // e.g. length of '<mark name="1"/>'
@@ -59,7 +59,6 @@ ttsynth_callback (ECIHand hEngine,
 {
   synth *s = (synth *) pData;
   enum ECICallbackReturn rv = eciDataNotProcessed;
-  int available;
 
   if (s->state == state_idle)
     return eciDataProcessed;
@@ -74,13 +73,8 @@ ttsynth_callback (ECIHand hEngine,
     rv = eciDataProcessed;
     break;
   case eciWaveformBuffer:
-    available = snd_pcm_avail_update (s->device);
-    if (available < lParam)
-      rv = eciDataNotProcessed;
-    else {
-      snd_pcm_writei (s->device, audio_buffer, lParam);
-      rv = eciDataProcessed;
-    }
+    rv = (!player_write(s->player, audio_buffer, lParam*2)) ?
+      eciDataProcessed : eciDataNotProcessed;
     break;
   default:
     break;
@@ -103,7 +97,7 @@ static void add_utf8_text(synth *s, unsigned char *utf8_text)
   if (-1 != iconv(s->ld, &inbuf, &inbytesleft, &outbuf, &outbytesleft))
     {
       s->outbuf[MAX_OUTPUT - outbytesleft] = 0;
-      eciAddText(s->handle, s->outbuf);
+      eciAddText(s->eci, s->outbuf);
     }
 
 }
@@ -136,7 +130,7 @@ jupiter_add_text (synth *s,
 	*buf = '<';
       }
       s->text_pending = 1;
-      eciInsertIndex(s->handle, i);
+      eciInsertIndex(s->eci, i);
 
       for (buf += JUPITER_ESPEAKUP_MARK_MIN_LENGTH - 1; buf <= textMax; buf++) {
 	if (*buf == '>') {
@@ -158,69 +152,47 @@ static synth *
 synth_new ()
 {
   synth *s;
-  snd_pcm_hw_params_t *hw_params = 0;
-  unsigned int tmp;
-  int err;
+  struct player_format format;
+  uint32_t bufsize = 0;
 
-  s = (synth *) malloc (sizeof(synth));
+  s = (synth *) calloc (1, sizeof(synth));
   if (!s)
     return NULL;
 
-  if ((err = snd_pcm_open (&s->device, "default", SND_PCM_STREAM_PLAYBACK, 0)) < 0)
-    goto bail;
-
-  if ((err = snd_pcm_hw_params_malloc (&hw_params)) < 0)
-    goto bail;
-
-  if ((err = snd_pcm_hw_params_any (s->device, hw_params)) < 0)
-    goto bail;
-
-  if ((err = snd_pcm_hw_params_set_access (s->device, hw_params, SND_PCM_ACCESS_RW_INTERLEAVED)) < 0)
-    goto bail;
-
-  if ((err = snd_pcm_hw_params_set_format (s->device, hw_params, SND_PCM_FORMAT_S16_LE)) < 0)
-    goto bail;
-
-  if ((err = snd_pcm_hw_params_set_rate (s->device, hw_params, 22050, 0)) < 0)
-    goto bail;
-
-  if ((err = snd_pcm_hw_params_set_channels (s->device, hw_params, 1)) < 0)
-    goto bail;
-
-  if ((err = snd_pcm_hw_params (s->device, hw_params)) < 0)
-    goto bail;
-
-  snd_pcm_hw_params_free (hw_params);
-
-  // figure out a buffer size
-
-  tmp = snd_pcm_avail_update (s->device)/4;
-  if (tmp > MAX_AUDIO_BUFFER_SIZE)
-    tmp = MAX_AUDIO_BUFFER_SIZE;
-
   /* Create the ECI handle */
+  s->eci = eciNew ();
+  format.bits = 16;
+  format.is_signed = true;
+  format.is_little_endian = true;
+  format.rate = 11025;
+  format.channels = 1;
+  s->player = player_create(&format, &bufsize);
+  if (!s->player || !bufsize)
+    goto bail;
 
-  s->handle = eciNew ();
-
+  audio_buffer = calloc(1, bufsize);
+  if (!audio_buffer)
+    goto bail;
+  
   /* Setup the audio callback */
-
-  eciRegisterCallback (s->handle, ttsynth_callback, s);
-  eciSetOutputBuffer (s->handle, tmp, audio_buffer);
-  eciSetParam (s->handle, eciSynthMode, 0);
-  eciSetParam (s->handle, eciNumberMode, 1);
-  eciSetParam (s->handle, eciTextMode, 0);
-  eciSetParam (s->handle, eciSampleRate, 2);
-  eciSetParam (s->handle, eciDictionary, 1);
+  eciRegisterCallback (s->eci, ttsynth_callback, s);
+  eciSetOutputBuffer (s->eci, bufsize/2, (short int*)audio_buffer);
+  eciSetParam (s->eci, eciSynthMode, 0);
+  eciSetParam (s->eci, eciNumberMode, 1);
+  eciSetParam (s->eci, eciTextMode, 0);
+  eciSetParam (s->eci, eciSampleRate, 2);
+  eciSetParam (s->eci, eciDictionary, 1);
   s->state = state_idle;
   return s;
 
  bail:
-
-  if (s->device)
-    snd_pcm_close (s->device);
-  if (s->handle)
-    eciDelete (s->handle);
+  if (s->eci) {
+    eciDelete (s->eci);
+    s->eci = NULL;
+  }
   free (s);
+  free (audio_buffer);
+  audio_buffer = NULL;
   return NULL;
 }
 
@@ -229,11 +201,11 @@ static void
 synth_close (synth *s)
 {
   assert (s);
-  assert (s->device);
-  assert (s->handle != NULL_ECI_HAND);
+  assert (s->player);
+  assert (s->eci != NULL_ECI_HAND);
 
-  snd_pcm_close (s->device);
-  eciDelete (s->handle);
+  player_delete(s->player);
+  eciDelete (s->eci);
   free (s);
 }
 
@@ -244,7 +216,7 @@ speakup_add_text (synth *s,
 {
   assert (s);
 
-  eciAddText (s->handle, text);
+  eciAddText (s->eci, text);
   s->text_pending = 1;
 }
 
@@ -252,23 +224,15 @@ speakup_add_text (synth *s,
 static void
 synth_speak (synth *s)
 {
-  snd_pcm_status_t *status;
-  snd_pcm_state_t state;
-
-
+  bool is_running = false;
   assert (s);
 
   if (!s->text_pending)
     return;
-  eciSynthesize (s->handle);
+  eciSynthesize (s->eci);
   s->state = state_speaking;
   s->text_pending = 0;
-  snd_pcm_status_malloc (&status);
-  snd_pcm_status (s->device, status);
-  state = snd_pcm_status_get_state (status);
-  if (state != SND_PCM_STATE_RUNNING)
-    snd_pcm_prepare (s->device);
-  snd_pcm_status_free (status);
+  player_is_running(s->player, &is_running);
 }
 
 
@@ -278,24 +242,24 @@ synth_stop (synth *s)
   assert (s);
 
   s->state = state_idle;
-  eciSpeaking (s->handle);
-  eciStop (s->handle);
+  eciSpeaking (s->eci);
+  eciStop (s->eci);
   s->text_pending = 0;
-  snd_pcm_drop (s->device);
+  player_stop(s->player);
 }
 
 
 static void
 synth_update_pitch (synth *s)
 {
-  eciSetVoiceParam (s->handle, 0, eciPitchBaseline, s->pitch*11);
+  eciSetVoiceParam (s->eci, 0, eciPitchBaseline, s->pitch*11);
 }
 
 
 static void
 synth_update_rate (synth *s)
 {
-  eciSetVoiceParam (s->handle, 0, eciSpeed, s->rate*15);
+  eciSetVoiceParam (s->eci, 0, eciSpeed, s->rate*15);
 }
 
 
@@ -395,7 +359,7 @@ synth_main_loop (synth *s)
     i = select (s->fd+1, &set, NULL, NULL, &tv);
     if (i == 0) {
       if (s->state == state_speaking) {
-	if (!eciSpeaking (s->handle))
+	if (!eciSpeaking (s->eci))
 	  s->state = state_idle;
       }
     }
