@@ -9,6 +9,7 @@
 #include <iconv.h>
 #include <string.h>
 #include "player.h"
+#include "debug.h"
 
 enum {
   state_stopped,
@@ -23,6 +24,8 @@ typedef enum {
 
 #define MAX_INPUT 1024
 #define MAX_OUTPUT (4*MAX_INPUT)
+
+#define MAX_BUFFER_SIZE 4096
 
 typedef struct {
   int fd;
@@ -57,6 +60,7 @@ ttsynth_callback (ECIHand hEngine,
 		  long lParam,
 		  void *pData)
 {
+  ENTER();
   synth *s = (synth *) pData;
   enum ECICallbackReturn rv = eciDataNotProcessed;
 
@@ -73,8 +77,8 @@ ttsynth_callback (ECIHand hEngine,
     rv = eciDataProcessed;
     break;
   case eciWaveformBuffer:
-    rv = (!player_write(s->player, audio_buffer, lParam*2)) ?
-      eciDataProcessed : eciDataNotProcessed;
+    rv = (!player_write(s->player, audio_buffer, lParam*2)) ? 
+      eciDataProcessed : eciDataNotProcessed; // lParam*2: 2 bytes, mono channel
     break;
   default:
     break;
@@ -85,6 +89,7 @@ ttsynth_callback (ECIHand hEngine,
 
 static void add_utf8_text(synth *s, unsigned char *utf8_text)
 {
+  ENTER();
   char *inbuf;
   char *outbuf;
   size_t inbytesleft;
@@ -109,6 +114,7 @@ static void
 jupiter_add_text (synth *s,
 		  unsigned char *text)
 {
+  ENTER();
   unsigned char* textMax;
   unsigned char* buf;
 
@@ -151,8 +157,9 @@ jupiter_add_text (synth *s,
 static synth *
 synth_new ()
 {
+  ENTER();
   synth *s;
-  struct player_format format;
+  struct player_format format = {bits:16, is_signed:true, is_little_endian:true, rate:22050, channels:1};
   uint32_t bufsize = 0;
 
   s = (synth *) calloc (1, sizeof(synth));
@@ -161,22 +168,20 @@ synth_new ()
 
   /* Create the ECI handle */
   s->eci = eciNew ();
-  format.bits = 16;
-  format.is_signed = true;
-  format.is_little_endian = true;
-  format.rate = 11025;
-  format.channels = 1;
+
   s->player = player_create(&format, &bufsize);
   if (!s->player || !bufsize)
     goto bail;
 
-  audio_buffer = calloc(1, bufsize);
+  //TODO  audio_buffer = calloc(1, bufsize);
+  audio_buffer = calloc(1, MAX_BUFFER_SIZE);
   if (!audio_buffer)
     goto bail;
   
   /* Setup the audio callback */
   eciRegisterCallback (s->eci, ttsynth_callback, s);
-  eciSetOutputBuffer (s->eci, bufsize/2, (short int*)audio_buffer);
+  //TODO  eciSetOutputBuffer (s->eci, bufsize/sizeof(short int), (short int*)audio_buffer);
+  eciSetOutputBuffer (s->eci, MAX_BUFFER_SIZE/sizeof(short int), (short int*)audio_buffer);
   eciSetParam (s->eci, eciSynthMode, 0);
   eciSetParam (s->eci, eciNumberMode, 1);
   eciSetParam (s->eci, eciTextMode, 0);
@@ -200,12 +205,13 @@ synth_new ()
 static void
 synth_close (synth *s)
 {
+  ENTER();
   assert (s);
   assert (s->player);
   assert (s->eci != NULL_ECI_HAND);
 
-  player_delete(s->player);
   eciDelete (s->eci);
+  player_delete(s->player);
   free (s);
 }
 
@@ -224,7 +230,7 @@ speakup_add_text (synth *s,
 static void
 synth_speak (synth *s)
 {
-  bool is_running = false;
+  ENTER();
   assert (s);
 
   if (!s->text_pending)
@@ -232,26 +238,29 @@ synth_speak (synth *s)
   eciSynthesize (s->eci);
   s->state = state_speaking;
   s->text_pending = 0;
-  player_is_running(s->player, &is_running);
+  LEAVE();
 }
 
 
 static void
 synth_stop (synth *s)
 {
+  ENTER();
   assert (s);
 
   s->state = state_idle;
-  eciSpeaking (s->eci);
+  //  eciSpeaking (s->eci);
   eciStop (s->eci);
   s->text_pending = 0;
   player_stop(s->player);
+  LEAVE();
 }
 
 
 static void
 synth_update_pitch (synth *s)
 {
+  ENTER();  
   eciSetVoiceParam (s->eci, 0, eciPitchBaseline, s->pitch*11);
 }
 
@@ -259,7 +268,10 @@ synth_update_pitch (synth *s)
 static void
 synth_update_rate (synth *s)
 {
-  eciSetVoiceParam (s->eci, 0, eciSpeed, s->rate*15);
+  ENTER();
+  // TODO  eciSetVoiceParam (s->eci, 0, eciSpeed, s->rate*15);
+  //  eciSetVoiceParam (s->eci, 0, eciSpeed, 100);
+  eciSetVoiceParam (s->eci, 0, eciSpeed, 50);
 }
 
 
@@ -269,6 +281,7 @@ synth_process_command (synth *s,
 		       int start,
 		       int l)
 {
+  ENTER();
   unsigned char param;
   unsigned char value;
 
@@ -289,6 +302,7 @@ synth_process_command (synth *s,
 	synth_update_rate (s);
 	break;
       }
+      LEAVE();
       return 4;
     }
     else if (buf[start+1] >= '0' && buf[start+1] <= '9') {
@@ -305,11 +319,14 @@ synth_process_command (synth *s,
 	break;
       }
     }
+    LEAVE();
     return 3;
   case 24:
     synth_stop (s);
+    LEAVE();
     return 1;
   }
+  LEAVE();
   return 1;
 }
 
@@ -317,6 +334,7 @@ synth_process_command (synth *s,
 static void
 synth_process_data (synth *s)
 {
+  ENTER();
   unsigned char buf[MAX_INPUT+1];
   int l;
   unsigned char tmp_buf[MAX_INPUT+1];
@@ -341,12 +359,14 @@ synth_process_data (synth *s)
       start = l;
   }
   synth_speak (s);
+  LEAVE();
 }
 
 
 static void
 synth_main_loop (synth *s)
 {
+  ENTER();
   fd_set set;
   struct timeval tv, timeout = {0, 20000};
 
@@ -357,10 +377,13 @@ synth_main_loop (synth *s)
     FD_ZERO (&set);
     FD_SET (s->fd, &set);
     i = select (s->fd+1, &set, NULL, NULL, &tv);
+    dbg("event received");
     if (i == 0) {
       if (s->state == state_speaking) {
+	dbg("call eciSpeaking");
 	if (!eciSpeaking (s->eci))
 	  s->state = state_idle;
+	dbg("ret eciSpeaking");
       }
     }
     else if (i > 0)
@@ -380,6 +403,7 @@ usage()
 int
 main (int argc, char** argv)
 {
+  ENTER();
   synth *s;
   int fd = -1;
   iconv_t ld = (iconv_t)-1;

@@ -5,9 +5,9 @@
 #include <stdbool.h>
 
 enum player_status {
-  PLAYER_OK,
+  PLAYER_OK=0,
   PLAYER_ARGS_ERROR, 
-  PLAYER_DATA_NOT_WRITTEN, 
+  PLAYER_WRITE_ERROR, 
 };
 
 struct player_format {
@@ -24,8 +24,5 @@ player_handle player_create(struct player_format *format, uint32_t *buffer_size)
 enum player_status player_write(player_handle handle, const uint8_t *buf, uint32_t size);
 enum player_status player_stop(player_handle handle);
 enum player_status player_delete(player_handle handle);
-enum player_status player_is_running(player_handle handle, bool *is_running);
-
-
 
 #endif
