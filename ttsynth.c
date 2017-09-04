@@ -40,6 +40,7 @@ typedef struct {
   player_handle player; 
 } synth;
 
+unsigned int debug = 0;
 static void speakup_add_text (synth *s, unsigned char *text);
 static void jupiter_add_text (synth *s, unsigned char *text);
 
@@ -163,8 +164,10 @@ synth_new ()
   uint32_t bufsize = 0;
 
   s = (synth *) calloc (1, sizeof(synth));
-  if (!s)
+  if (!s) {
+	dbg2("Error: alloc");
     return NULL;
+  }
 
   /* Create the ECI handle */
   s->eci = eciNew ();
@@ -198,6 +201,10 @@ synth_new ()
   free (s);
   free (audio_buffer);
   audio_buffer = NULL;
+  {
+	//	const char *err = "Can't create eci handle!";
+	dbg2("Can't create eci handle! ");
+  }
   return NULL;
 }
 
@@ -377,13 +384,13 @@ synth_main_loop (synth *s)
     FD_ZERO (&set);
     FD_SET (s->fd, &set);
     i = select (s->fd+1, &set, NULL, NULL, &tv);
-    dbg("event received");
+	//    dbg("event received");
     if (i == 0) {
       if (s->state == state_speaking) {
-	dbg("call eciSpeaking");
-	if (!eciSpeaking (s->eci))
-	  s->state = state_idle;
-	dbg("ret eciSpeaking");
+		//		dbg("call eciSpeaking");
+		if (!eciSpeaking (s->eci))
+		  s->state = state_idle;
+		//		dbg("ret eciSpeaking");
       }
     }
     else if (i > 0)
@@ -395,44 +402,65 @@ synth_main_loop (synth *s)
 static void
 usage()
 {
-  printf("Usage: voxinup [-j]\n"
-	 "-j: jupiter/espeakup mode\n");
+  dbg2("Usage: voxinup [OPTION]\n"
+	   "  -j: jupiter/espeakup mode\n"
+	   "  -d: debug\n"
+	   "  -D: daemonize\n"
+	   );
 }
 
 
 int
 main (int argc, char** argv)
 {
-  ENTER();
   synth *s;
   int fd = -1;
   iconv_t ld = (iconv_t)-1;
   ttsynth_mode_t mode = SPEAKUP_MODE;
+  int opt;
+  int daemonize = 0;
 
-  if (argc == 2) {
-    if (strcmp("-j", argv[1]) != 0) {
+  while ((opt = getopt(argc, argv, "jdD")) != -1) {
+	switch (opt) {
+	case 'd':
+	  debug = LV_DEBUG_LEVEL;
+	  ENTER();
+	  break;
+	case 'D':
+	  daemonize = 1;
+	  break;
+	case 'j':
+	  mode = JUPITER_ESPEAKUP_MODE;
+	  break;
+	default:
       usage();
       return -1;
-    }
-    mode = JUPITER_ESPEAKUP_MODE;
-    fd = STDIN_FILENO;
-    /* only iso-8859-1 languages are currently supported */
-    ld = iconv_open("ISO-8859-1//TRANSLIT", "UTF-8");
-    if (ld == (iconv_t)-1) {
-      return -1;
-    }
-  } else {
-    mode = SPEAKUP_MODE;
-    fd = open ("/dev/softsynth", O_RDONLY);
-    if (fd < 0) {
-      return -1;
-    }
-    fcntl (fd, F_SETFL,
-	   fcntl (fd, F_GETFL) | O_NONBLOCK);
+	}
   }
 
-  if (mode == SPEAKUP_MODE)
-    daemon (0, 1);
+  switch (mode) {
+  case SPEAKUP_MODE:
+    while((fd = open ("/dev/softsynth", O_RDONLY)) < 0) {
+	  dbg2("Waiting for speakup (/dev/softsynth)");
+	  usleep(100000);
+	}
+	fcntl (fd, F_SETFL,
+		   fcntl (fd, F_GETFL) | O_NONBLOCK);
+	break;
+
+  default: // JUPITER_ESPEAKUP_MODE
+	fd = STDIN_FILENO;
+	/* only iso-8859-1 languages are currently supported */
+	ld = iconv_open("ISO-8859-1//TRANSLIT", "UTF-8");
+	if (ld == (iconv_t)-1) {
+	  dbg2("Error: iconv");
+	  return -1;
+	}
+	break;
+  }
+
+  if (daemonize)
+	daemon (0, 1);
 
   {
     FILE *f = fopen("/run/voxinup.pid", "w");

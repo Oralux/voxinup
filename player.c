@@ -1,3 +1,8 @@
+/*
+ * player.c based on aplay.c (from alsa-utils, GPL Version 2, June 1991)
+ *
+ */
+
 #include <stdint.h>
 #include <alsa/asoundlib.h>
 #include "player.h"
