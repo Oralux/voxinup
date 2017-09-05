@@ -4,9 +4,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include "player.h"
+#include "debug.h"
 
 #define WAV_FILE "Front_Center.wav"
 #define HEADER_SIZE 44
+
+unsigned int debug = LV_DEBUG_LEVEL;
 
 void main() {
   struct stat buf;

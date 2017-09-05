@@ -6,10 +6,12 @@
 #include <time.h>
 #include "player.h"
 #include "eci.h"
-
+#include "debug.h"
 #define MAX_SAMPLES 1024
 static uint8_t *audio_buf;
 static uint32_t buffer_size = 0;
+
+unsigned int debug = LV_DEBUG_LEVEL;
 
 const char* vh_quote = "So long as there shall exist, by virtue of law and custom, decrees of "
   "damnation pronounced by society, artificially creating hells amid the "
