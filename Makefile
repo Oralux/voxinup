@@ -31,7 +31,7 @@ test1: test1.o ${OBJS_TESTS}
 test2: test2.o ${OBJS_TESTS}
 	${CC} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
-test: test1 test2
+test.all: test1 test2
 	./run.sh
 clean:
 	${RM} *.o voxinup test1 test2
