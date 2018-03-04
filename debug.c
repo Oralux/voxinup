@@ -9,12 +9,17 @@
 
 FILE *myDebugFile = NULL;
 static enum DebugLevel myDebugLevel = LV_ERROR_LEVEL;
+#define LOG_THRESHOLD 100000
+
 
 int DebugEnabled(enum DebugLevel level)
 {
   if (!myDebugFile)
     DebugFileInit();
-
+  else if (ftell(myDebugFile) >= LOG_THRESHOLD) {
+      rewind(myDebugFile);
+  }
+  
   return (myDebugFile && (level <= myDebugLevel)); 
 }
 
