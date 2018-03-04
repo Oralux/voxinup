@@ -78,8 +78,10 @@ ttsynth_callback (ECIHand hEngine,
     rv = eciDataProcessed;
     break;
   case eciWaveformBuffer:
-    rv = (!player_write(s->player, audio_buffer, lParam*2)) ? 
-      eciDataProcessed : eciDataNotProcessed; // lParam*2: 2 bytes, mono channel
+    //    rv = (!player_write(s->player, audio_buffer, lParam*2)) ? 
+    //  eciDataProcessed : eciDataNotProcessed; // lParam*2: 2 bytes, mono channel
+    player_write(s->player, audio_buffer, lParam*2); // lParam*2: 2 bytes, mono channel
+    rv = eciDataProcessed;
     break;
   default:
     break;

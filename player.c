@@ -30,36 +30,36 @@ struct player {
 
 #define IS_PLAYER(p) (p && (p->id == PLAYER_ID))
 
-static bool xrun(snd_pcm_t *device)
-{
-  ENTER();
-  bool ret = true;
-  snd_pcm_status_t *status;
-  int res;
+/* static bool xrun(snd_pcm_t *device) */
+/* { */
+/*   ENTER(); */
+/*   bool ret = true; */
+/*   snd_pcm_status_t *status; */
+/*   int res; */
 
-  snd_pcm_status_alloca(&status);
+/*   snd_pcm_status_alloca(&status); */
 
-  if ((res = snd_pcm_status(device, status)) < 0) {
-    err("Error: snd_pcm_status (%s)", snd_strerror(res));
-    return false;
-  }
+/*   if ((res = snd_pcm_status(device, status)) < 0) { */
+/*     err("Error: snd_pcm_status (%s)", snd_strerror(res)); */
+/*     return false; */
+/*   } */
 
-  if (snd_pcm_status_get_state(status) == SND_PCM_STATE_XRUN) {
-    struct timeval now, diff, tstamp;
-    gettimeofday(&now, 0);
-    snd_pcm_status_get_trigger_tstamp(status, &tstamp);
-    timersub(&now, &tstamp, &diff);
-    err("underrun!!! (at least %.3f ms long)",	
-	diff.tv_sec * 1000 + diff.tv_usec / 1000.0);
+/*   if (snd_pcm_status_get_state(status) == SND_PCM_STATE_XRUN) { */
+/*     struct timeval now, diff, tstamp; */
+/*     gettimeofday(&now, 0); */
+/*     snd_pcm_status_get_trigger_tstamp(status, &tstamp); */
+/*     timersub(&now, &tstamp, &diff); */
+/*     err("underrun!!! (at least %.3f ms long)",	 */
+/* 	diff.tv_sec * 1000 + diff.tv_usec / 1000.0); */
     
-    if ((res = snd_pcm_prepare(device)) < 0) {
-      err("Error: snd_pcm_prepare (%s)", snd_strerror(res));
-      ret = false;
-    }
-  }
-  msg("read/write error, state = %s", snd_pcm_state_name(snd_pcm_status_get_state(status)));
-  return ret;
-}
+/*     if ((res = snd_pcm_prepare(device)) < 0) { */
+/*       err("Error: snd_pcm_prepare (%s)", snd_strerror(res)); */
+/*       ret = false; */
+/*     } */
+/*   } */
+/*   msg("read/write error, state = %s", snd_pcm_state_name(snd_pcm_status_get_state(status))); */
+/*   return ret; */
+/* } */
 
 static bool suspend(snd_pcm_t *device)
 {
@@ -288,10 +288,10 @@ enum player_status player_write(player_handle handle, const uint8_t *buf, uint32
       dbg("snd_pcm_writei: EAGAIN");
       snd_pcm_wait(p->device, 100);
     } else if (n == -EPIPE) {
-      if (!xrun(p->device)) {
-	status = PLAYER_WRITE_ERROR;
-	break;
-      }
+      /* if (!xrun(p->device)) { */
+      status = PLAYER_WRITE_ERROR;
+      break;
+      /* } */
     } else if (n == -ESTRPIPE) {
       if (!suspend(p->device)) {
 	status = PLAYER_WRITE_ERROR;
