@@ -276,9 +276,7 @@ static void
 synth_update_rate (synth *s)
 {
   ENTER();
-  // TODO  eciSetVoiceParam (s->eci, 0, eciSpeed, s->rate*15);
-  //  eciSetVoiceParam (s->eci, 0, eciSpeed, 100);
-  eciSetVoiceParam (s->eci, 0, eciSpeed, 50);
+  eciSetVoiceParam (s->eci, 0, eciSpeed, s->rate*25);
 }
 
 
@@ -292,6 +290,7 @@ synth_process_command (synth *s,
   unsigned char param;
   unsigned char value;
 
+  dbg("buf: type=%d, +/-=%c, value=%c, param=%c", buf[start], buf[start+1], buf[start+2], buf[start+3]);
   switch (buf[start]) {
   case 1:
     if (buf[start+1] == '+' || buf[start+1] == '-') {
