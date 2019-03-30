@@ -1,7 +1,7 @@
 This software is a fork [1] of spk-connect-ttsynth downloaded from www.speakupmodified.org [2].
 It attempts to answer recent demands at Oralux.org.
 
-Compatible with Voxin 1.x.
+Compatible with Voxin 2.x.
 
 * install
 make install

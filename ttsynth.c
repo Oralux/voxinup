@@ -8,6 +8,7 @@
 #include <eci.h>
 #include <iconv.h>
 #include <string.h>
+#include <dlfcn.h>
 #include "player.h"
 #include "debug.h"
 
@@ -54,6 +55,59 @@ static uint8_t *audio_buffer = NULL;
 #define JUPITER_ESPEAKUP_MARK_MIN_LENGTH 16 // e.g. length of '<mark name="1"/>'
 #define JUPITER_ESPEAKUP_MARK_MIN_VALUE 1
 #define JUPITER_ESPEAKUP_MARK_MAX_VALUE 99
+
+/* Functions pointers */
+typedef int (*t_eciAddText)(ECIHand hEngine, ECIInputText pText);
+typedef int (*t_eciCopyVoice)(ECIHand hEngine, int iVoiceFrom, int iVoiceTo);
+typedef ECIHand (*t_eciDelete)(ECIHand hEngine);
+typedef ECIDictHand (*t_eciDeleteDict)(ECIHand hEngine, ECIDictHand hDict);
+typedef void (*t_eciErrorMessage)(ECIHand hEngine, void* buffer);
+typedef int (*t_eciGetAvailableLanguages)(enum ECILanguageDialect *aLanguages, int *nLanguages);
+typedef ECIDictHand (*t_eciGetDict)(ECIHand hEngine);
+typedef int (*t_eciGetParam)(ECIHand hEngine, enum ECIParam Param);
+typedef int (*t_eciGetVoiceParam)(ECIHand hEngine, int iVoice, enum ECIVoiceParam Param);
+typedef int (*t_eciInsertIndex)(ECIHand hEngine, int iIndex);
+typedef enum ECIDictError (*t_eciLoadDict)(ECIHand hEngine, ECIDictHand hDict, enum ECIDictVolume DictVol, ECIInputText pFilename);
+typedef ECIHand (*t_eciNew)(void);
+typedef ECIDictHand (*t_eciNewDict)(ECIHand hEngine);
+typedef void (*t_eciRegisterCallback)(ECIHand hEngine, ECICallback Callback, void *pData);
+typedef enum ECIDictError (*t_eciSetDict)(ECIHand hEngine, ECIDictHand hDict);
+typedef int (*t_eciSetOutputBuffer)(ECIHand hEngine, int iSize, short *psBuffer);
+typedef int (*t_eciSetParam)(ECIHand hEngine, enum ECIParam Param, int iValue);
+typedef int (*t_eciSetVoiceParam)(ECIHand hEngine, int iVoice, enum ECIVoiceParam Param, int iValue);
+typedef int (*t_eciSpeaking)(ECIHand hEngine);
+typedef int (*t_eciStop)(ECIHand hEngine);
+typedef int (*t_eciSynchronize)(ECIHand hEngine);
+typedef int (*t_eciSynthesize)(ECIHand hEngine);
+typedef void (*t_eciVersion)(char *pBuffer);
+
+static t_eciAddText _eciAddText;
+static t_eciCopyVoice _eciCopyVoice;
+static t_eciDelete _eciDelete;
+static t_eciDeleteDict _eciDeleteDict;
+static t_eciErrorMessage _eciErrorMessage;
+static t_eciGetAvailableLanguages _eciGetAvailableLanguages;
+static t_eciGetDict _eciGetDict;
+static t_eciGetParam _eciGetParam;
+static t_eciGetVoiceParam _eciGetVoiceParam;
+static t_eciInsertIndex _eciInsertIndex;
+static t_eciLoadDict _eciLoadDict;
+static t_eciNew _eciNew;
+static t_eciNewDict _eciNewDict;
+static t_eciRegisterCallback _eciRegisterCallback;
+static t_eciSetDict _eciSetDict;
+static t_eciSetOutputBuffer _eciSetOutputBuffer;
+static t_eciSetParam _eciSetParam;
+static t_eciSetVoiceParam _eciSetVoiceParam;
+static t_eciStop _eciStop;
+static t_eciSpeaking _eciSpeaking;
+static t_eciSynchronize _eciSynchronize;
+static t_eciSynthesize _eciSynthesize;
+static t_eciVersion _eciVersion;
+
+#define LIBVOXIN "libvoxin.so"
+#define LIBECI "libibmeci.so"
+
 
 enum ECICallbackReturn
 ttsynth_callback (ECIHand hEngine,
@@ -105,7 +159,7 @@ static void add_utf8_text(synth *s, unsigned char *utf8_text)
   if (-1 != iconv(s->ld, &inbuf, &inbytesleft, &outbuf, &outbytesleft))
     {
       s->outbuf[MAX_OUTPUT - outbytesleft] = 0;
-      eciAddText(s->eci, s->outbuf);
+      _eciAddText(s->eci, s->outbuf);
     }
 
 }
@@ -139,7 +193,7 @@ jupiter_add_text (synth *s,
 	*buf = '<';
       }
       s->text_pending = 1;
-      eciInsertIndex(s->eci, i);
+      _eciInsertIndex(s->eci, i);
 
       for (buf += JUPITER_ESPEAKUP_MARK_MIN_LENGTH - 1; buf <= textMax; buf++) {
 	if (*buf == '>') {
@@ -172,7 +226,7 @@ synth_new ()
   }
 
   /* Create the ECI handle */
-  s->eci = eciNew ();
+  s->eci = _eciNew ();
 
   s->player = player_create(&format, &bufsize);
   if (!s->player || !bufsize)
@@ -184,20 +238,20 @@ synth_new ()
     goto bail;
   
   /* Setup the audio callback */
-  eciRegisterCallback (s->eci, ttsynth_callback, s);
+  _eciRegisterCallback (s->eci, ttsynth_callback, s);
   //TODO  eciSetOutputBuffer (s->eci, bufsize/sizeof(short int), (short int*)audio_buffer);
-  eciSetOutputBuffer (s->eci, MAX_BUFFER_SIZE/sizeof(short int), (short int*)audio_buffer);
-  eciSetParam (s->eci, eciSynthMode, 0);
-  eciSetParam (s->eci, eciNumberMode, 1);
-  eciSetParam (s->eci, eciTextMode, 0);
-  eciSetParam (s->eci, eciSampleRate, 2);
-  eciSetParam (s->eci, eciDictionary, 1);
+  _eciSetOutputBuffer (s->eci, MAX_BUFFER_SIZE/sizeof(short int), (short int*)audio_buffer);
+  _eciSetParam (s->eci, eciSynthMode, 0);
+  _eciSetParam (s->eci, eciNumberMode, 1);
+  _eciSetParam (s->eci, eciTextMode, 0);
+  _eciSetParam (s->eci, eciSampleRate, 2);
+  _eciSetParam (s->eci, eciDictionary, 1);
   s->state = state_idle;
   return s;
 
  bail:
   if (s->eci) {
-    eciDelete (s->eci);
+    _eciDelete (s->eci);
     s->eci = NULL;
   }
   free (s);
@@ -219,7 +273,7 @@ synth_close (synth *s)
   assert (s->player);
   assert (s->eci != NULL_ECI_HAND);
 
-  eciDelete (s->eci);
+  _eciDelete (s->eci);
   player_delete(s->player);
   free (s);
 }
@@ -231,7 +285,7 @@ speakup_add_text (synth *s,
 {
   assert (s);
 
-  eciAddText (s->eci, text);
+  _eciAddText (s->eci, text);
   s->text_pending = 1;
 }
 
@@ -244,7 +298,7 @@ synth_speak (synth *s)
 
   if (!s->text_pending)
     return;
-  eciSynthesize (s->eci);
+  _eciSynthesize (s->eci);
   s->state = state_speaking;
   s->text_pending = 0;
   LEAVE();
@@ -259,7 +313,7 @@ synth_stop (synth *s)
 
   s->state = state_idle;
   //  eciSpeaking (s->eci);
-  eciStop (s->eci);
+  _eciStop (s->eci);
   s->text_pending = 0;
   player_stop(s->player);
   LEAVE();
@@ -270,7 +324,7 @@ static void
 synth_update_pitch (synth *s)
 {
   ENTER();  
-  eciSetVoiceParam (s->eci, 0, eciPitchBaseline, s->pitch*11);
+  _eciSetVoiceParam (s->eci, 0, eciPitchBaseline, s->pitch*11);
 }
 
 
@@ -278,7 +332,7 @@ static void
 synth_update_rate (synth *s)
 {
   ENTER();
-  eciSetVoiceParam (s->eci, 0, eciSpeed, s->rate*25);
+  _eciSetVoiceParam (s->eci, 0, eciSpeed, s->rate*25);
 }
 
 
@@ -389,7 +443,7 @@ synth_main_loop (synth *s)
     if (i == 0) {
       if (s->state == state_speaking) {
 		//		dbg("call eciSpeaking");
-		if (!eciSpeaking (s->eci))
+		if (!_eciSpeaking (s->eci))
 		  s->state = state_idle;
 		//		dbg("ret eciSpeaking");
       }
@@ -420,6 +474,7 @@ main (int argc, char** argv)
   ttsynth_mode_t mode = SPEAKUP_MODE;
   int opt;
   int daemonize = 0;
+  void *libHandle;
 
   while ((opt = getopt(argc, argv, "jdD")) != -1) {
 	switch (opt) {
@@ -438,7 +493,41 @@ main (int argc, char** argv)
       return -1;
 	}
   }
-
+  
+  libHandle = dlopen(LIBVOXIN, RTLD_NOW);
+  if (libHandle == NULL) {
+	libHandle = dlopen(LIBECI, RTLD_NOW);
+	if (libHandle == NULL) {
+	  dbg2("Can't load %s or %s (%s)\n", LIBVOXIN, LIBECI, dlerror());
+	  return -1;
+	}
+  }
+	
+  _eciAddText = (t_eciAddText)dlsym(libHandle, "eciAddText");
+  _eciCopyVoice = (t_eciCopyVoice)dlsym(libHandle, "eciCopyVoice");
+  _eciDelete = (t_eciDelete)dlsym(libHandle, "eciDelete");
+  _eciDeleteDict = (t_eciDeleteDict)dlsym(libHandle, "eciDeleteDict");
+  _eciErrorMessage = (t_eciErrorMessage)dlsym(libHandle, "eciErrorMessage");
+  _eciGetAvailableLanguages = (t_eciGetAvailableLanguages)dlsym(libHandle, "eciGetAvailableLanguages");
+  _eciGetDict = (t_eciGetDict)dlsym(libHandle, "eciGetDict");
+  _eciGetParam = (t_eciGetParam)dlsym(libHandle, "eciGetParam");
+  _eciGetVoiceParam = (t_eciGetVoiceParam)dlsym(libHandle, "eciGetVoiceParam");
+  _eciInsertIndex = (t_eciInsertIndex)dlsym(libHandle, "eciInsertIndex");
+  _eciLoadDict = (t_eciLoadDict)dlsym(libHandle, "eciLoadDict");
+  _eciNew = (t_eciNew)dlsym(libHandle, "eciNew");
+  _eciNewDict = (t_eciNewDict)dlsym(libHandle, "eciNewDict");
+  _eciRegisterCallback = (t_eciRegisterCallback)dlsym(libHandle, "eciRegisterCallback");
+  _eciSetDict = (t_eciSetDict)dlsym(libHandle, "eciSetDict");
+  _eciSetOutputBuffer = (t_eciSetOutputBuffer)dlsym(libHandle, "eciSetOutputBuffer");
+  _eciSetParam = (t_eciSetParam)dlsym(libHandle, "eciSetParam");
+  _eciSetVoiceParam = (t_eciSetVoiceParam)dlsym(libHandle, "eciSetVoiceParam");
+  _eciStop = (t_eciStop)dlsym(libHandle, "eciStop");
+  _eciSpeaking = (t_eciSpeaking)dlsym(libHandle, "eciSpeaking");
+  _eciSynchronize = (t_eciSynchronize)dlsym(libHandle, "eciSynchronize");
+  _eciSynthesize = (t_eciSynthesize)dlsym(libHandle, "eciSynthesize");
+  _eciVersion = (t_eciVersion)dlsym(libHandle, "eciVersion");
+ 	
+  
   switch (mode) {
   case SPEAKUP_MODE:
     while((fd = open ("/dev/softsynth", O_RDONLY)) < 0) {

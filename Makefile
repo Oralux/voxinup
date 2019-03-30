@@ -6,7 +6,7 @@ SRCS_TESTS = player.c debug.c
 SCRIPTS = jupiter-spk-run.sh  jupiter-spk-stop.sh
 OBJS = ${SRCS:.c=.o}
 OBJS_TESTS = ${SRCS_TESTS:.c=.o}
-LDLIBS = -lasound -libmeci
+LDLIBS = -lasound -ldl
 CFLAGS = -I/opt/IBM/ibmtts/inc -Wall 
 #CFLAGS += -ggdb -DDEBUG
 LDFLAGS = 
